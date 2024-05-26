@@ -185,7 +185,7 @@ const checkDataCorrect = (data, existData) => {
 };
 
 const parseC98Price = (data) => {
-  const price = parseInt(data.listingData?.tokens[0]?.amount)/ 1_000_000_000_000_000_000;
+  const price = parseInt(data.listingData?.tokens[0]?.amount) / 1_000_000_000_000_000_000;
   return price
 }
 
