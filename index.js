@@ -9,74 +9,108 @@ const { Telegraf } = require("telegraf");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-let fetchStatus = false;
 let minEpicPrice = 300;
 let minMythicalPrice = 600;
+let intervalFn = null
 const existData = new Map()
 
 bot.launch();
+bot.command("epic", (ctx) => {
+  if (!ctx.payload) {
+    bot.telegram.sendMessage(
+      ctx.chat.id,
+      `Please set the price you want.\nCurrent epic price is ${minEpicPrice}$.\n if you want to bid 200$, enter:\n epic 200`,
+    );
+    return
+  }
+  const payload = parseInt(ctx.payload)
+  if (isNaN(payload)) {
+    bot.telegram.sendMessage(
+      ctx.chat.id,
+      `Invalid price, please retry again 😭`,
+    );
+    return
+  }
+  minEpicPrice = payload
+  bot.telegram.sendMessage(
+    ctx.chat.id,
+    `Max epic price updated to ${payload}$ 🫡`,
+  );
+});
+
+
+bot.command("myth", (ctx) => {
+  if (!ctx.payload) {
+    bot.telegram.sendMessage(
+      ctx.chat.id,
+      `Please set the price you want.\nCurrent myth price is ${minMythicalPrice}$\nif you want to bid 200$, enter:\n myth 200`,
+    );
+    return
+  }
+  const payload = parseInt(ctx.payload)
+  if (isNaN(payload)) {
+    bot.telegram.sendMessage(
+      ctx.chat.id,
+      `Invalid price, please retry again 😭`,
+    );
+    return
+  }
+  minMythicalPrice = payload
+  bot.telegram.sendMessage(
+    ctx.chat.id,
+    `Max mythical price updated to ${payload}$ 🫡`,
+  );
+});
+
+bot.command('stop', (ctx) => {
+  bot.telegram.sendMessage(
+    ctx.chat.id,
+    `You unregistered for notification from the bot 🫵`,
+  ); clearInterval(intervalFn)
+})
+
 bot.command("start", (ctx) => {
   bot.telegram.sendMessage(
     ctx.chat.id,
-    `Hello ${ctx.from?.first_name}! Welcome to the Friday bot.\nI respond to /hello. Please try it`,
-    {}
+    `You registered for notification from the bot 🎉`,
   );
-});
-
-bot.command("fetch", (ctx) => {
-  fetchStatus = !fetchStatus;
-  bot.telegram.sendMessage(
-    ctx.chat.id,
-    `${fetchStatus ? "turn on" : "turn off"} fetch data`,
-    {}
-  );
-  if (fetchStatus) {
-    setInterval(() => {
-      console.log("Fetch ne");
-      axios
-        .post(
-          `https://main-server.dagora.xyz/adapters/dagora/collection/meta/item`,
-          {
-            page: 1,
-            size: 40,
-            address: "0xD4A3639794e85160eF2e953e28eeE73a84fD9279",
-            chain: "tomo",
-            sort: "price",
+  intervalFn = setInterval(() => {
+    axios
+      .post(
+        `https://main-server.dagora.xyz/adapters/dagora/collection/meta/item`,
+        {
+          page: 1,
+          size: 60,
+          address: "0xD4A3639794e85160eF2e953e28eeE73a84fD9279",
+          chain: "tomo",
+          sort: "price",
+        },
+        {
+          headers: {
+            accept: "application/json",
+            signature:
+              "a28edefb1c4e83c209ff67b60ad763f8c2b26e04ada509cc552ff45afd661991",
+            source: "C98DAGDBMQ9",
+            Referer: "https://dagora.xyz/",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
           },
-          {
-            headers: {
-              accept: "application/json",
-              signature:
-                "a28edefb1c4e83c209ff67b60ad763f8c2b26e04ada509cc552ff45afd661991",
-              source: "C98DAGDBMQ9",
-              Referer: "https://dagora.xyz/",
-              "Referrer-Policy": "strict-origin-when-cross-origin",
-            },
-          }
-        )
-        .then((response) => {
-          const { data } = response?.data.data;
-          const result = data.filter((item) =>
-            checkDataCorrect(item, existData)
-          );
-          console.log("result", result)
-          result.forEach((item) => {
-            existData.set(item.listingData.id, item.listingData.price)
-            const msg = createMessage(ctx.chat.id, item);
-            bot.telegram.sendPhoto(msg.chat_id, msg.photo, msg);
-          });
+        }
+      )
+      .then((response) => {
+        const { data } = response?.data.data;
+        const result = data.filter((item) =>
+          checkDataCorrect(item, existData)
+        );
+        result.forEach((item) => {
+          existData.set(item.listingData.id, item.listingData.price)
+          const msg = createMessage(ctx.chat.id, item);
+          bot.telegram.sendPhoto(msg.chat_id, msg.photo, msg);
         });
-    }, 10000);
-  }
+      });
+  }, 30000);
+
 });
 
-bot.command("thanks", (ctx) => {
-  bot.telegram.sendMessage(
-    ctx.chat.id,
-    `My address: 👇\nBSC: 0x3952c3BaF84901442bd848E47E3F04d520A91972\nSPL: 8Nea5sQFaL6RjFnVLtxYTPiTMrpFcLtDzXRw1VXXUrjS\nVIC: 0x3952c3BaF84901442bd848E47E3F04d520A91972`,
-    {}
-  );
-});
 
 const checkDataCorrect = (data, existData) => {
   /** EXAMPLE data
@@ -157,10 +191,18 @@ const checkDataCorrect = (data, existData) => {
 };
 
 const createMessage = (chatId, data) => {
+  const photo = data.image.replace('?height=500&width=500', '?height=200&width=200')
+  const url = `https://dagora.xyz/detail/viction/${data.address}/${data.listingData.id}`
   const result = {
     chat_id: chatId,
-    caption: `ID: ${data.listingData.id}\nPrice: ${data.listingData.price}$\n👉: https://dagora.xyz/detail/viction/${data.address}/${data.listingData.id}`,
-    photo: data.image,
+    caption: [
+      `Id: #${data.listingData.id}`,
+      `Price: ${data.listingData.price} $`,
+    ].join("\n"),
+    reply_markup: {
+      inline_keyboard: [[{ text: "View", url }]],
+    },
+    photo: photo,
   };
   return result;
 };
