@@ -12,6 +12,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN_CONTRA);
 let minPriceC98 = 100;
 let intervalFn = null
 const existData = new Map()
+const c98TokenAddress = `0x0Fd0288AAAE91eaF935e2eC14b23486f86516c8C`
 
 bot.launch();
 bot.command("price", (ctx) => {
@@ -174,6 +175,11 @@ const checkDataCorrect = (data, existData) => {
   if (data.listingData.type === "auction") {
     return false
   }
+
+  if (data.listingData?.tokens[0]?.address !== c98TokenAddress) {
+    // only scan token selling with c98 token ( not $VIC)
+    return false
+  }
   const price = parseC98Price(data)
 
   if (price > minPriceC98) {
@@ -197,7 +203,7 @@ const createMessage = (chatId, data) => {
     chat_id: chatId,
     caption: [
       `Id: #${data.listingData.id}`,
-      `Price: ${price} C98`,
+      `Price: ${price} c98`,
     ].join("\n"),
     reply_markup: {
       inline_keyboard: [[{ text: "View", url }]],
